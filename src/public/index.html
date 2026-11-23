@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CyberScan | Web Security & Header Auditor</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: #131b2e;
+      --border: #23304c;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --primary: #38bdf8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #eab308;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 2rem 1rem; }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 2.5rem; }
+    header h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 0.5rem; }
+    header h1 span { color: var(--primary); }
+    header p { color: var(--muted); font-size: 1.05rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 1rem; padding: 2rem; margin-bottom: 2rem; }
+    .search-box { display: flex; gap: 0.75rem; }
+    input[type="text"] {
+      flex-grow: 1;
+      background: #0c1222;
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.85rem 1.25rem;
+      color: #fff;
+      font-size: 1rem;
+    }
+    input[type="text"]:focus { outline: none; border-color: var(--primary); }
+    .btn-scan {
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      padding: 0.85rem 1.75rem;
+      border-radius: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+    .btn-scan:hover { background: #0369a1; }
+    .grade-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0c1222;
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.5rem 2rem;
+      margin-bottom: 1.5rem;
+    }
+    .grade-badge {
+      font-size: 3.5rem;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--green);
+      font-family: monospace;
+    }
+    .header-item {
+      background: #0c1222;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      border-left: 4px solid var(--red);
+    }
+    .header-item.pass { border-left-color: var(--green); }
+    .header-title { display: flex; justify-content: space-between; font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
+    .header-desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+    .remediation-box { background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 0.35rem; font-family: monospace; font-size: 0.8rem; color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🛡️ Cyber<span>Scan</span> Auditor</h1>
+      <p>Auditoría de cabeceras de seguridad HTTP, mitigación de ataques XSS/Clickjacking y postura web</p>
+    </header>
+
+    <div class="card">
+      <div class="search-box">
+        <input type="text" id="targetUrl" placeholder="Ingresa un dominio o URL (ej: https://github.com)" value="https://github.com">
+        <button class="btn-scan" id="scanBtn" onclick="runAudit()">Escanear</button>
+      </div>
+    </div>
+
+    <div class="card" id="resultsSection" style="display: none;">
+      <div class="grade-card">
+        <div>
+          <div style="font-size: 0.85rem; color: var(--muted); text-transform: uppercase; font-weight: 700;">Calificación de Seguridad</div>
+          <div id="targetDomain" style="font-size: 1.15rem; font-weight: 700; margin-top: 0.25rem;">github.com</div>
+          <div id="passedCount" style="font-size: 0.85rem; color: var(--muted); margin-top: 0.25rem;">6 de 6 cabeceras aprobadas</div>
+        </div>
+        <div id="gradeBadge" class="grade-badge">A+</div>
+      </div>
+
+      <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">Desglose de Cabeceras Evaluadas</h3>
+      <div id="headersList"></div>
+    </div>
+  </div>
+
+  <script>
+    async function runAudit() {
+      const url = document.getElementById('targetUrl').value.trim();
+      if (!url) return;
+
+      const btn = document.getElementById('scanBtn');
+      btn.textContent = 'Auditando...';
+
+      try {
+        const res = await fetch('/api/v1/scan?url=' + encodeURIComponent(url));
+        const data = await res.json();
+        renderAudit(data, url);
+      } catch (err) {
+        alert('Error ejecutando la auditoría: ' + err.message);
+      } finally {
+        btn.textContent = 'Escanear';
+      }
+    }
+
+    function renderAudit(data, target) {
+      document.getElementById('resultsSection').style.display = 'block';
+      document.getElementById('targetDomain').textContent = target;
+      document.getElementById('passedCount').textContent = `${data.headers_passed} de ${data.headers_evaluated} cabeceras recomendadas implementadas`;
+
+      const gradeEl = document.getElementById('gradeBadge');
+      gradeEl.textContent = data.grade;
+
+      if (['A+', 'A'].includes(data.grade)) gradeEl.style.color = '#22c55e';
+      else if (['B', 'C'].includes(data.grade)) gradeEl.style.color = '#eab308';
+      else gradeEl.style.color = '#ef4444';
+
+      const list = document.getElementById('headersList');
+      list.innerHTML = '';
+
+      data.results.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'header-item ' + (r.present ? 'pass' : 'fail');
+        item.innerHTML = `
+          <div class="header-title">
+            <span>${r.header}</span>
+            <span style="color: ${r.present ? '#22c55e' : '#ef4444'}; font-size: 0.85rem;">
+              ${r.present ? '✓ PRESENTE' : '✗ FALTANTE'}
+            </span>
+          </div>
+          <div class="header-desc">${r.description}</div>
+          ${!r.present ? `<div class="remediation-box">🛠️ Remediación: ${r.remediation}</div>` : `<div style="font-size: 0.8rem; font-family: monospace; color: #94a3b8;">Valor: ${r.value}</div>`}
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    window.onload = runAudit;
+  </script>
+</body>
+</html>
